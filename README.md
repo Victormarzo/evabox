@@ -40,3 +40,8 @@ docker exec -i quiz_db psql -U quizuser -d quizdb < init.sql
 ```bash
 python test_db.py
 ```
+
+8. Rodar a aplicação em desenvolvimento
+```bash
+uvicorn app.main:app --reload
+```

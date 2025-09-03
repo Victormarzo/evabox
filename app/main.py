@@ -111,10 +111,9 @@ def generate_test(
     test_config: schemas.TestConfig,
     db: Session = Depends(get_db)
 ):
-    print(test_config)
     # Build query based on config
     query = db.query(models.Question)
-    
+
     if test_config.subject_id:
         query = query.filter(models.Question.subject_id == test_config.subject_id)
     
@@ -133,28 +132,34 @@ def generate_test(
     
     # Select random questions
     selected_questions = random.sample(questions, test_config.num_questions)
-    
+   
+
+
     # Create test record
     db_test = models.Test(
         num_questions=test_config.num_questions,
         subject_id=test_config.subject_id,
         topic_id=test_config.topic_id
     )
+    
     db.add(db_test)
     db.commit()
     db.refresh(db_test)
     
     # Add questions to test
-    for question in enumerate(selected_questions):
+    for question in selected_questions:
+        
         test_question = models.TestQuestion(
             test_id=db_test.id,
+            
             question_id=question.id,
         )
         db.add(test_question)
     
     db.commit()
     db.refresh(db_test)
-    
+    print('sssssssssssssssssssssssssssssss')
+    print(vars(db_test))
     return db_test
 
 @app.get("/tests/{test_id}", response_model=schemas.TestResponse)
