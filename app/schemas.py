@@ -1,5 +1,5 @@
 from pydantic import BaseModel, ConfigDict
-from typing import List
+from typing import List, Optional
 
 class SubjectBase(BaseModel):
     name: str
@@ -63,3 +63,37 @@ class SubjectResponse(SubjectBase):
     id:int
 
     model_config = ConfigDict(from_attributes=True)
+
+class TestConfig(BaseModel):
+    num_questions: int = 10
+    subject_id: Optional[int] = None
+    topic_id: Optional[int] = None
+
+class TestQuestionResponse(BaseModel):
+    id: int
+    name: str
+    answer_options: List[AnswerOptionResponse]
+    
+    model_config = ConfigDict(from_attributes=True)
+
+class TestResponse(BaseModel):
+    id: int
+    num_questions: int
+    subject_id: Optional[int] = None
+    topic_id: Optional[int] = None
+    questions: List[TestQuestionResponse]
+    
+    model_config = ConfigDict(from_attributes=True)
+
+class QuestionAnswer(BaseModel):
+    question_id: int
+    selected_option_id: int
+
+class TestSubmission(BaseModel):
+    answers: List[QuestionAnswer]
+
+class TestResult(BaseModel):
+    test_id: int
+    score: float
+    total_questions: int
+    correct_answers: int

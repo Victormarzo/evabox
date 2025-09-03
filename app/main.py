@@ -1,9 +1,11 @@
 from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
-from .database import get_db
+from .database import get_db,Base,engine
 from typing import List, Optional
 from . import models
 from . import schemas 
+import random
+
 app = FastAPI(title="EVA BOX")
 
 @app.get("/")
@@ -101,3 +103,129 @@ def read_questions(
     print(query)
     questions = query.offset(skip).limit(limit).all()
     return questions
+
+#Test Routes
+
+@app.post("/tests/generate", response_model=schemas.TestResponse)
+def generate_test(
+    test_config: schemas.TestConfig,
+    db: Session = Depends(get_db)
+):
+    print(test_config)
+    # Build query based on config
+    query = db.query(models.Question)
+    
+    if test_config.subject_id:
+        query = query.filter(models.Question.subject_id == test_config.subject_id)
+    
+    if test_config.topic_id:
+        query = query.filter(models.Question.topic_id == test_config.topic_id)
+    
+    # Get all matching questions
+    questions = query.all()
+    
+    # Check if we have enough questions
+    if len(questions) < test_config.num_questions:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Only {len(questions)} questions available. Requested {test_config.num_questions}."
+        )
+    
+    # Select random questions
+    selected_questions = random.sample(questions, test_config.num_questions)
+    
+    # Create test record
+    db_test = models.Test(
+        num_questions=test_config.num_questions,
+        subject_id=test_config.subject_id,
+        topic_id=test_config.topic_id
+    )
+    db.add(db_test)
+    db.commit()
+    db.refresh(db_test)
+    
+    # Add questions to test
+    for question in enumerate(selected_questions):
+        test_question = models.TestQuestion(
+            test_id=db_test.id,
+            question_id=question.id,
+        )
+        db.add(test_question)
+    
+    db.commit()
+    db.refresh(db_test)
+    
+    return db_test
+
+@app.get("/tests/{test_id}", response_model=schemas.TestResponse)
+def get_test(test_id: int, db: Session = Depends(get_db)):
+  
+    test = db.query(models.Test).filter(models.Test.id == test_id).first()
+    if not test:
+        raise HTTPException(status_code=404, detail="Test not found")
+    
+    return test
+
+@app.post("/tests/{test_id}/submit", response_model=schemas.TestResult)
+def submit_test_answers(
+    test_id: int,
+    answers: schemas.TestSubmission,
+    db: Session = Depends(get_db)
+):
+    
+    # Get the test
+    test = db.query(models.Test).filter(models.Test.id == test_id).first()
+    if not test:
+        raise HTTPException(status_code=404, detail="Test not found")
+    
+    if test.completed:
+        raise HTTPException(status_code=400, detail="Test already completed")
+    
+    correct_count = 0
+    
+    # Process each answer
+    for answer in answers.answers:
+        # Get the test question
+        test_question = db.query(models.TestQuestion).filter(
+            models.TestQuestion.test_id == test_id,
+            models.TestQuestion.question_id == answer.question_id
+        ).first()
+        
+        if not test_question:
+            continue  # Skip if question not found in this test
+        
+        # Get the correct answer for this question
+        correct_option = db.query(models.AnswerOption).filter(
+            models.AnswerOption.question_id == answer.question_id,
+            models.AnswerOption.is_correct == True
+        ).first()
+        
+        # Check if answer is correct
+        is_correct = (correct_option and correct_option.id == answer.selected_option_id)
+        
+        if is_correct:
+            correct_count += 1
+        
+        # Update test question with user's answer
+        test_question.user_selected_option_id = answer.selected_option_id
+        test_question.is_correct = is_correct
+    
+    # Calculate score
+    total_questions = len(answers.answers)
+    score = (correct_count / total_questions) * 100 if total_questions > 0 else 0
+    
+    # Update test completion
+    test.completed = True
+    test.score = score
+    test.completed_at = datetime.utcnow()
+    
+    db.commit()
+    
+    # Return results
+    return {
+        "test_id": test_id,
+        "score": round(score, 2),
+        "total_questions": total_questions,
+        "correct_answers": correct_count,
+        "submitted_at": test.completed_at
+    }
