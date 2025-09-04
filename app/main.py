@@ -1,10 +1,11 @@
 from fastapi import FastAPI, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session,joinedload,selectinload
 from .database import get_db,Base,engine
 from typing import List, Optional
 from . import models
 from . import schemas 
 import random
+import json 
 
 app = FastAPI(title="EVA BOX")
 
@@ -83,7 +84,6 @@ def create_question(question: schemas.QuestionCreate, db: Session = Depends(get_
     db.refresh(db_question)
     return db_question
 
-
 @app.get("/questions/", response_model=List[schemas.QuestionResponse])
 def read_questions(
     subject_id: Optional[int] = None,
@@ -111,31 +111,23 @@ def generate_test(
     test_config: schemas.TestConfig,
     db: Session = Depends(get_db)
 ):
-    # Build query based on config
     query = db.query(models.Question)
 
     if test_config.subject_id:
         query = query.filter(models.Question.subject_id == test_config.subject_id)
-    
     if test_config.topic_id:
         query = query.filter(models.Question.topic_id == test_config.topic_id)
     
-    # Get all matching questions
     questions = query.all()
     
-    # Check if we have enough questions
     if len(questions) < test_config.num_questions:
         raise HTTPException(
             status_code=400,
             detail=f"Only {len(questions)} questions available. Requested {test_config.num_questions}."
         )
     
-    # Select random questions
     selected_questions = random.sample(questions, test_config.num_questions)
-   
 
-
-    # Create test record
     db_test = models.Test(
         num_questions=test_config.num_questions,
         subject_id=test_config.subject_id,
@@ -146,7 +138,6 @@ def generate_test(
     db.commit()
     db.refresh(db_test)
     
-    # Add questions to test
     for question in selected_questions:
         
         test_question = models.TestQuestion(
@@ -158,18 +149,47 @@ def generate_test(
     
     db.commit()
     db.refresh(db_test)
-    print('sssssssssssssssssssssssssssssss')
-    print(vars(db_test))
+
     return db_test
 
-@app.get("/tests/{test_id}", response_model=schemas.TestResponse)
+@app.get("/tests/{test_id}", response_model=schemas.TestResponseWithQuestions)
 def get_test(test_id: int, db: Session = Depends(get_db)):
-  
     test = db.query(models.Test).filter(models.Test.id == test_id).first()
     if not test:
         raise HTTPException(status_code=404, detail="Test not found")
     
-    return test
+    test_questions = db.query(models.TestQuestion).options(
+        joinedload(models.TestQuestion.question).joinedload(models.Question.answer_options)
+    ).filter(models.TestQuestion.test_id == test_id).all()
+    
+    questions_response = []
+    for tq in test_questions:
+        questions_response.append({
+            "id": tq.question.id,
+            "text": tq.question.text,
+            "answer_options": [
+                {
+                    "id": ao.id,
+                    "text": ao.text,
+                    "is_correct": ao.is_correct,
+                    "question_id": ao.question_id
+                }
+                for ao in tq.question.answer_options
+            ]
+        })
+
+    
+    
+    json_response = {
+        "id": test.id,
+        "num_questions": test.num_questions,
+        "subject_id": test.subject_id,
+        "topic_id": test.topic_id,
+        "questions": questions_response
+    }
+
+    return json_response
+
 
 @app.post("/tests/{test_id}/submit", response_model=schemas.TestResult)
 def submit_test_answers(

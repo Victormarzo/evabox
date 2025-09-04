@@ -52,7 +52,6 @@ class Test(Base):
     completed = Column(Boolean, default=False)
     score = Column(Float, nullable=True)
     
-    # Relationships
     subject = relationship("Subject")
     topic = relationship("Topic")
     test_questions = relationship("TestQuestion", back_populates="test")
@@ -66,7 +65,6 @@ class TestQuestion(Base):
     user_selected_option_id = Column(Integer, ForeignKey('answer_option.id'), nullable=True)
     is_correct = Column(Boolean, nullable=True)
     
-    # Relationships
     test = relationship("Test", back_populates="test_questions")
     question = relationship("Question")
     selected_option = relationship("AnswerOption")

@@ -84,10 +84,19 @@ class TestResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+class TestResponseWithQuestions(BaseModel):
+    id: int
+    num_questions: int
+    subject_id: Optional[int] = None
+    topic_id: Optional[int] = None
+    questions: List[TestQuestionResponse] = [] 
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class QuestionAnswer(BaseModel):
     question_id: int
     selected_option_id: int
-
 class TestSubmission(BaseModel):
     answers: List[QuestionAnswer]
 
