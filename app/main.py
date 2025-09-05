@@ -1,11 +1,10 @@
-from fastapi import FastAPI, Depends, HTTPException
-from sqlalchemy.orm import Session,joinedload,selectinload
+from fastapi import FastAPI, Depends, HTTPException,status
+from sqlalchemy.orm import Session,joinedload
 from .database import get_db,Base,engine
 from typing import List, Optional
 from . import models
 from . import schemas 
 import random
-import json 
 
 app = FastAPI(title="EVA BOX")
 
@@ -19,11 +18,9 @@ def read_subjects(skip: int = 0, limit: int =100,db: Session = Depends(get_db)):
     subjects = db.query(models.Subject).offset(skip).limit(limit).all()
     return subjects
 
-@app.post("/subjects", response_model= schemas.SubjectResponse)
+@app.post("/subjects", response_model= schemas.SubjectResponse, status_code= status.HTTP_201_CREATED)
 def create_subject(subject:schemas.SubjectCreate, db:Session = Depends(get_db)):
-    print(0,subject)
     db_subject = models.Subject(**subject.model_dump())
-    print(1,db_subject)
     db.add(db_subject)
     db.commit()
     db.refresh(db_subject)
@@ -35,7 +32,7 @@ def read_topics(skip: int = 0, limit: int =100,db: Session = Depends(get_db)):
     topics = db.query(models.Topic).offset(skip).limit(limit).all()
     return topics
 
-@app.post("/topics", response_model= schemas.TopicDetailResponse)
+@app.post("/topics", response_model= schemas.TopicDetailResponse,status_code= status.HTTP_201_CREATED)
 def create_topic(topic:schemas.TopicCreate, db:Session = Depends(get_db)):
     subject = db.query(models.Subject).filter(models.Subject.id == topic.subject_id).first()
     if not subject:
@@ -47,7 +44,7 @@ def create_topic(topic:schemas.TopicCreate, db:Session = Depends(get_db)):
     return db_topic
 
 # Question routes
-@app.post("/questions/", response_model=schemas.QuestionResponse)
+@app.post("/questions/", response_model=schemas.QuestionResponse,status_code= status.HTTP_201_CREATED)
 def create_question(question: schemas.QuestionCreate, db: Session = Depends(get_db)):
     subject = db.query(models.Subject).filter(models.Subject.id == question.subject_id).first()
     if not subject:
@@ -106,7 +103,7 @@ def read_questions(
 
 #Test Routes
 
-@app.post("/tests/generate", response_model=schemas.TestResponse)
+@app.post("/tests/generate", response_model=schemas.TestResponse,status_code= status.HTTP_201_CREATED)
 def generate_test(
     test_config: schemas.TestConfig,
     db: Session = Depends(get_db)
@@ -196,7 +193,7 @@ def sql(
     db: Session = Depends(get_db)
 ):
     return db.query(models.Test).filter(models.Test.id==3).first()
-    return db.query(models.TestQuestion).filter(models.TestQuestion.test_id==3).all()
+    #return db.query(models.TestQuestion).filter(models.TestQuestion.test_id==3).all()
 
 
 @app.post("/tests/{test_id}/submit", response_model=schemas.TestResult)
