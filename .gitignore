@@ -1,8 +1,7 @@
-
 __pycache__/
 .env
 *.db
 *.sqlite
 *.sqlite3
 test.db
-.venv/
+venv/
