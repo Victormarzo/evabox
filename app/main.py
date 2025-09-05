@@ -190,6 +190,14 @@ def get_test(test_id: int, db: Session = Depends(get_db)):
 
     return json_response
 
+#Route for direct queries
+@app.get("/sql")
+def sql(
+    db: Session = Depends(get_db)
+):
+    return db.query(models.Test).filter(models.Test.id==3).first()
+    return db.query(models.TestQuestion).filter(models.TestQuestion.test_id==3).all()
+
 
 @app.post("/tests/{test_id}/submit", response_model=schemas.TestResult)
 def submit_test_answers(
@@ -197,8 +205,7 @@ def submit_test_answers(
     answers: schemas.TestSubmission,
     db: Session = Depends(get_db)
 ):
-    
-    # Get the test
+    print(answers)
     test = db.query(models.Test).filter(models.Test.id == test_id).first()
     if not test:
         raise HTTPException(status_code=404, detail="Test not found")
@@ -207,50 +214,40 @@ def submit_test_answers(
         raise HTTPException(status_code=400, detail="Test already completed")
     
     correct_count = 0
-    
-    # Process each answer
+
     for answer in answers.answers:
-        # Get the test question
         test_question = db.query(models.TestQuestion).filter(
             models.TestQuestion.test_id == test_id,
             models.TestQuestion.question_id == answer.question_id
         ).first()
         
         if not test_question:
-            continue  # Skip if question not found in this test
+            continue  
         
-        # Get the correct answer for this question
         correct_option = db.query(models.AnswerOption).filter(
             models.AnswerOption.question_id == answer.question_id,
             models.AnswerOption.is_correct == True
         ).first()
         
-        # Check if answer is correct
         is_correct = (correct_option and correct_option.id == answer.selected_option_id)
         
         if is_correct:
             correct_count += 1
         
-        # Update test question with user's answer
         test_question.user_selected_option_id = answer.selected_option_id
         test_question.is_correct = is_correct
     
-    # Calculate score
     total_questions = len(answers.answers)
     score = (correct_count / total_questions) * 100 if total_questions > 0 else 0
     
-    # Update test completion
     test.completed = True
     test.score = score
-    test.completed_at = datetime.utcnow()
     
     db.commit()
-    
-    # Return results
+    print(test.score)
     return {
         "test_id": test_id,
         "score": round(score, 2),
         "total_questions": total_questions,
         "correct_answers": correct_count,
-        "submitted_at": test.completed_at
     }

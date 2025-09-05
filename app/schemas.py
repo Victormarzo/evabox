@@ -93,10 +93,10 @@ class TestResponseWithQuestions(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-
 class QuestionAnswer(BaseModel):
     question_id: int
     selected_option_id: int
+
 class TestSubmission(BaseModel):
     answers: List[QuestionAnswer]
 
